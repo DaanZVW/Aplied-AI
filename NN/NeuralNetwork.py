@@ -1,7 +1,7 @@
 import numpy as np
 import copy
 
-class Neuron_Child:
+class Weighted_Neuron:
     def __init__( self, neuron, weight ):
         self.neuron = neuron
         self.weight = weight
@@ -9,10 +9,22 @@ class Neuron_Child:
 class Neuron:
     def __init__( self ):
         self.neuron_childs = []
+        self.neuron_parents = []
         self.delta = 0
+        self.b = 0
 
+    def forward_propagation( self ):
+        pass
 
+    def backward_propagation( self ):
+        pass
 
+    def sigma( self ):
+        pass
+
+    def update_neuron( self ):
+        pass
+    
 
 def import_data_from_file( filename ):
     
