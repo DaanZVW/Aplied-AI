@@ -43,21 +43,41 @@ def import_data_from_file( filename ):
     return normalised_data, data, names
 
 def sigmoid( x ):
+    """Return the sigmoid of x
+
+    Args:
+        x (float): Value you want sigmoided
+
+    Returns:
+        float: sigmoided value
+    """
     return 1 / (1 + np.exp(-x))
 
 def get_random_number():
+    """Get random number between -1 and 1
+
+    Returns:
+        [type]: [description]
+    """
     return random.uniform( -1, 1 )
 
 class Input_Perceptron:
     def __init__( self, value=0 ):
+        """Make an input perceptron
+
+        Args:
+            value (int, optional): Value of a_value. Defaults to 0.
+        """
         self.a_value = value
         self.name = "Input"
 
 class Perceptron:
     def __init__( self ):
+        """Make a perceptron
+        """
         self.child_perceptrons = []
         self.child_weights = []
-        self.layer_perceptrons = []
+        self.parent_perceptrons = []
         self.delta = 0
         self.bias = 0
         self.z_value = 0
@@ -65,6 +85,11 @@ class Perceptron:
         self.name = "Perceptron"
 
     def feed_forward( self ):
+        """[summary]
+
+        Returns:
+            [type]: [description]
+        """
         # Get result of previous layer times the designated weights
         self.z_value = np.dot( [child.a_value for child in self.child_perceptrons], self.child_weights )
 
@@ -78,20 +103,32 @@ class Perceptron:
         self.delta = sigmoid( self.z_value ) * (correct_output - self.a_value)
 
     def back_propagation_layer( self ):
-        for child in self.child_perceptrons:
-            # Filter out input childs
-            if child.name != "Perceptron":
+        # for child in self.child_perceptrons:
+        #     # Filter out input childs
+        #     if child.name != "Perceptron":
+        #         continue
+            
+        #     sum_weighted_parents = 0
+        #     for parent, parent_weight in zip( self.parent_perceptrons, self.child_weights ):
+        #         print( "yash" )
+
+        #         # Filter out input parents
+        #         if parent.name != "Perceptron":
+        #             continue
+
+        #         child_in_parent_index = parent.child_perceptrons.index[child]
+        #         print( child_in_parent_index )
+            
+        #     child.delta = sigmoid( child.z_value ) * sum_weighted_parents
+        for parent in self.parent_perceptrons:
+            # Filter out input parents
+            if parent.name != "Perceptron":
                 continue
             
-            sum_weighted_parents = 0
-            for parent, parent_weight in zip( self.layer_perceptrons, self.child_weights ):
-                # Filter out input parents
-                if parent.name != "Perceptron":
-                    continue
-
-                sum_weighted_parents += parent.delta * parent_weight
+            parent_weight = parent.child_weights[parent.child_perceptrons.index( self )]
             
-            child.delta = sigmoid( child.z_value ) * sum_weighted_parents
+
+
 
     def update_perceptron( self, learning_constant ):
         tmp_child_weight = []
@@ -134,7 +171,8 @@ class Neural_Network:
                 # Check if layer is not output layer
                 # Make parents if true from one layer forward
                 # NOTE: because we dont want layer 1 (inputs) we need to higher index by two
-                perceptron.layer_perceptrons = self.perceptrons[layer_index+1]
+                if layer_index != len(self.perceptrons)-2:
+                    perceptron.parent_perceptrons = self.perceptrons[layer_index+2]
 
     def print_network( self ):
         """Show the network in a useable form
@@ -144,22 +182,32 @@ class Neural_Network:
             print("\nlayer: {}".format( layer_index+1 ))
             for node in layer:
                 print( node.name, [ child.name for child in node.child_perceptrons ],
-                       [parent.name for parent in node.layer_perceptrons], 
+                       [parent.name for parent in node.parent_perceptrons], 
                        node.child_weights )
 
     def set_input_nodes( self, input_conf ):
+        """Set a_value of the input nodes to the dataset
+
+        Args:
+            input_conf (list): list with all the nodes from top to bottom
+        """
         for input_node, input_set in zip( self.perceptrons[0], input_conf ):
             input_node.a_value = input_set
 
     def get_output_nodes( self ):
+        """Get the a_value of all the output nodes
+
+        Returns:
+            list: list containing all the a_values of the end nodes
+        """
         output_nodes_output = []
         for output_node in self.perceptrons[-1]:
             output_nodes_output.append( output_node.a_value )
         return output_nodes_output
 
     def feed_forward( self ):
-        # print( self.perceptrons[1:] )
-
+        """Feed forward all perceptrons in the Neural Network
+        """
         for layer in self.perceptrons[1:]:
             for node in layer:
                 if node.name != "Perceptron":
@@ -168,20 +216,40 @@ class Neural_Network:
                 node.feed_forward()
 
     def back_propagation_last_layer( self, correct_output ):
+        """Do the back propagation for the last layer
+
+        Args:
+            correct_output (list): list containing all the correct outputs from top to bottom
+        """
         for node, correct_output_node in zip( self.perceptrons[-1], correct_output ):
             node.back_propagation_last_layer( correct_output_node )
 
     def back_propagation( self ):
+        """Do the regular back propagation for the entire Neural Network
+        """
         for layer in self.perceptrons[2:]:
             layer[0].back_propagation_layer()
 
     def update_perceptrons( self, learning_constant ):
+        """Update all the weights and biases of the Neural Network
+
+        Args:
+            learning_constant (int): Learning constant for better training
+        """
         for layer in self.perceptrons[1:]:
             for node in layer:
                 node.update_perceptron( learning_constant )
                 # print( "updated node" )
 
     def train( self, dataset, correct_output, learning_constant, iterations ):
+        """Train the Neural Network
+
+        Args:
+            dataset (list): List containing all the data
+            correct_output (list): list containing all the awnsers to the dataset
+            learning_constant (int): Learning constant for better training
+            iterations (int): Amount of iterations which the dataset is trained for
+        """
         for iteration_counter in range(iterations):
             print( "Iteration: {}".format( iteration_counter ) )
             # print( [[b.child_weights for b in a] for a in self.perceptrons[1:]] )
@@ -198,6 +266,15 @@ class Neural_Network:
                 self.update_perceptrons( learning_constant )
 
     def test_dataset( self, dataset, correct_output ):
+        """Test the dataset with correct_output and return a percentage
+
+        Args:
+            dataset (list): list containing the dataset
+            correct_output (list): list containing the correct_outputs
+
+        Returns:
+            float: Return a percentage of correct guessed.
+        """
         correct_awnsers = 0
         for dataset_data, correct_output_data in zip( dataset, correct_output ):
 
@@ -219,12 +296,14 @@ if __name__ == "__main__":
 
     john = Neural_Network( n_inputs=2, hidden_layers=[2], n_outputs=1 )
     john.connect_all()
-    # john.print_network()
+    john.print_network()
 
-    dataset = [[0,0],[0,1],[1,0],[1,1]]
-    correct_output = [[0],[1],[1],[0]]
+    john.perceptrons[1][0].back_propagation_layer()
 
-    john.train( dataset=dataset, correct_output=correct_output, learning_constant=1, iterations=5 )
-    john_resultaat = john.test_dataset( dataset=dataset, correct_output=correct_output )
+    # dataset = [[0,0],[0,1],[1,0],[1,1]]
+    # correct_output = [[0],[1],[1],[0]]
 
-    print( john_resultaat )
+    # john.train( dataset=dataset, correct_output=correct_output, learning_constant=0.5, iterations=10 )
+    # john_resultaat = john.test_dataset( dataset=dataset, correct_output=correct_output )
+
+    # print( john_resultaat )
