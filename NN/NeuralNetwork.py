@@ -2,8 +2,10 @@ import numpy as np
 import copy
 import random
 
+# Set random seed to 0 for reproduction
 random.seed( 0 )
 
+# Functions for neural network which are is not fitting for in the classes 
 def import_data_from_file( filename ):
     """Import data from filename (csv format)
 
@@ -63,6 +65,14 @@ def sigmoid( z ):
 
 
 def sigmoid_derivative( z ):
+    """Return the derivative of the sigmoid of z
+
+    Args:
+        z (float): Value you want sigmoided
+
+    Returns:
+        float: derivative sigmoided value
+    """
     return sigmoid( z ) * (1 - sigmoid( z ))
 
 def get_random_number():
@@ -73,9 +83,13 @@ def get_random_number():
     """
     return random.uniform( -1, 1 )
 
-class Input_Perceptron:
+# =================================================================
+#                      Neuron classes
+# =================================================================
+
+class Input_Neuron:
     def __init__( self, value=0 ):
-        """Make an input perceptron
+        """Make an input neuron
 
         Args:
             value (int, optional): Value of a_value. Defaults to 0.
@@ -83,24 +97,24 @@ class Input_Perceptron:
         self.a_value = value
         self.name = "Input"
 
-class Perceptron:
+class Neuron:
     def __init__( self ):
-        """Make a perceptron
+        """Make a neuron
         """
-        self.child_perceptrons = []
+        self.child_neurons = []
         self.child_weights = []
-        self.parent_perceptrons = []
+        self.parent_neurons = []
         self.delta = 0
         self.bias = get_random_number()
         self.z_value = 0
         self.a_value = 0
-        self.name = "Perceptron"
+        self.name = "neuron"
 
     def feed_forward( self ):
-        """Feed forward this perceptron
+        """Feed forward this neuron
         """
         # Get result of previous layer times the designated weights
-        self.z_value = np.dot( [child.a_value for child in self.child_perceptrons], self.child_weights ) + self.bias
+        self.z_value = np.dot( [child.a_value for child in self.child_neurons], self.child_weights ) + self.bias
 
         # Sigmoid the z_value plus the bias and put this in a_value
         self.a_value = sigmoid( self.z_value )
@@ -114,51 +128,36 @@ class Perceptron:
         self.delta = sigmoid_derivative( self.z_value ) * (correct_output - self.a_value)
 
     def back_propagation( self ):
-        """Do back propagation for the perceptron
+        """Do back propagation for the neuron
         """
-        # for child in self.child_perceptrons:
-        #     # Filter out input childs
-        #     if child.name != "Perceptron":
-        #         continue
-            
-        #     sum_weighted_parents = 0
-        #     for parent, parent_weight in zip( self.parent_perceptrons, self.child_weights ):
-        #         print( "yash" )
-
-        #         # Filter out input parents
-        #         if parent.name != "Perceptron":
-        #             continue
-
-        #         child_in_parent_index = parent.child_perceptrons.index[child]
-        #         print( child_in_parent_index )
-            
-        #     child.delta = sigmoid( child.z_value ) * sum_weighted_parents
-
         sum_weighted_parents = 0
-        for parent in self.parent_perceptrons:
+        for parent in self.parent_neurons:
             # Filter out input parents
-            if parent.name != "Perceptron":
+            if parent.name != "neuron":
                 continue
             
-            parent_weight = parent.child_weights[parent.child_perceptrons.index( self )]
+            parent_weight = parent.child_weights[parent.child_neurons.index( self )]
             sum_weighted_parents += parent.delta * parent_weight
         
         self.delta = sigmoid_derivative( self.z_value ) * sum_weighted_parents
 
-    def update_perceptron( self, learning_constant ):
-        """Update the weight and bias of the perceptron
+    def update_neuron( self, learning_constant ):
+        """Update the weight and bias of the neuron
 
         Args:
             learning_constant (int): learning constant
         """
         tmp_child_weight = []
-        for child, child_weight in zip( self.child_perceptrons, self.child_weights ):
+        for child, child_weight in zip( self.child_neurons, self.child_weights ):
             child_weight += learning_constant * self.delta * child.a_value
             tmp_child_weight.append( child_weight )
 
         self.child_weights = tmp_child_weight
         self.bias += learning_constant * self.delta
 
+# =================================================================
+#                           NN class
+# =================================================================
 
 class Neural_Network:
     def __init__( self, n_inputs, hidden_layers, n_outputs ):
@@ -169,40 +168,40 @@ class Neural_Network:
             hidden_layers (list): amount of nodes in layer given in list
             n_outputs (int): amount of output nodes
         """
-        self.perceptrons = [[] for _ in range( len(hidden_layers) + 2 )]
-        self.perceptrons[0] = [Input_Perceptron() for _ in range( n_inputs )]
+        self.neurons = [[] for _ in range( len(hidden_layers) + 2 )]
+        self.neurons[0] = [Input_Neuron() for _ in range( n_inputs )]
 
         for index in range(1, len(hidden_layers)+1):
-            self.perceptrons[index] = [Perceptron() for _ in range( hidden_layers[index-1] )]
+            self.neurons[index] = [Neuron() for _ in range( hidden_layers[index-1] )]
 
-        self.perceptrons[-1] = [Perceptron() for _ in range( n_outputs )]
-        self.inputs = self.perceptrons[0]
+        self.neurons[-1] = [Neuron() for _ in range( n_outputs )]
+        self.inputs = self.neurons[0]
 
     def connect_all( self ):
         """This function will connect every node to eachother
         """
-        for layer_index, layer in enumerate( self.perceptrons[1:] ):
-            for perceptron in layer:
+        for layer_index, layer in enumerate( self.neurons[1:] ):
+            for neuron in layer:
                 # Take childeren from one layer back
                 # NOTE: because we dont want layer 1 (inputs) we dont need index highering
-                perceptron.child_perceptrons = self.perceptrons[layer_index]
-                perceptron.child_weights = [get_random_number() for _ in range( len( self.perceptrons[layer_index] ) )]
+                neuron.child_neurons = self.neurons[layer_index]
+                neuron.child_weights = [get_random_number() for _ in range( len( self.neurons[layer_index] ) )]
 
                 # Check if layer is not output layer
                 # Make parents if true from one layer forward
                 # NOTE: because we dont want layer 1 (inputs) we need to higher index by two
-                if layer_index != len(self.perceptrons)-2:
-                    perceptron.parent_perceptrons = self.perceptrons[layer_index+2]
+                if layer_index != len(self.neurons)-2:
+                    neuron.parent_neurons = self.neurons[layer_index+2]
 
     def print_network( self ):
         """Show the network in a useable form
         """   
-        print("Layer: 0\n","\n".join( [ node.name for node in self.perceptrons[0] ] ), sep="")
-        for layer_index, layer in enumerate(self.perceptrons[1:]):
+        print("Layer: 0\n","\n".join( [ node.name for node in self.neurons[0] ] ), sep="")
+        for layer_index, layer in enumerate(self.neurons[1:]):
             print("\nlayer: {}".format( layer_index+1 ))
             for node in layer:
-                print( node.name, [ child.name for child in node.child_perceptrons ],
-                       [parent.name for parent in node.parent_perceptrons], 
+                print( node.name, [ child.name for child in node.child_neurons ],
+                       [parent.name for parent in node.parent_neurons], 
                        node.child_weights )
 
     def set_input_nodes( self, input_conf ):
@@ -211,7 +210,7 @@ class Neural_Network:
         Args:
             input_conf (list): list with all the nodes from top to bottom
         """
-        for input_node, input_set in zip( self.perceptrons[0], input_conf ):
+        for input_node, input_set in zip( self.neurons[0], input_conf ):
             input_node.a_value = input_set
 
     def get_output_nodes( self ):
@@ -221,16 +220,16 @@ class Neural_Network:
             list: list containing all the a_values of the end nodes
         """
         output_nodes_output = []
-        for output_node in self.perceptrons[-1]:
+        for output_node in self.neurons[-1]:
             output_nodes_output.append( output_node.a_value )
         return output_nodes_output
 
     def feed_forward( self ):
-        """Feed forward all perceptrons in the Neural Network
+        """Feed forward all neurons in the Neural Network
         """
-        for layer in self.perceptrons[1:]:
+        for layer in self.neurons[1:]:
             for node in layer:
-                if node.name != "Perceptron":
+                if node.name != "neuron":
                     continue
 
                 node.feed_forward()
@@ -241,26 +240,25 @@ class Neural_Network:
         Args:
             correct_output (list): list containing all the correct outputs from top to bottom
         """
-        for node, correct_output_node in zip( self.perceptrons[-1], correct_output ):
+        for node, correct_output_node in zip( self.neurons[-1], correct_output ):
             node.back_propagation_last_layer( correct_output_node )
 
     def back_propagation( self ):
         """Do the regular back propagation for the entire Neural Network
         """
-        for layer in reversed(self.perceptrons[1:-1]):
+        for layer in reversed(self.neurons[1:-1]):
             for node in layer:
                 node.back_propagation()
 
-    def update_perceptrons( self, learning_constant ):
+    def update_neurons( self, learning_constant ):
         """Update all the weights and biases of the Neural Network
 
         Args:
             learning_constant (int): Learning constant for better training
         """
-        for layer in self.perceptrons[1:]:
+        for layer in self.neurons[1:]:
             for node in layer:
-                node.update_perceptron( learning_constant )
-                # print( "updated node" )
+                node.update_neuron( learning_constant )
 
     def get_percentage_correctness( self, dataset, correct_output ):
         output_list_raw = []
@@ -278,8 +276,8 @@ class Neural_Network:
             output_list.append( output_nodes )
             output_list_raw.append( self.get_output_nodes() )
         
-        print( [[b.child_weights for b in a] for a in self.perceptrons[1:]] )
-        print( [[b.bias for b in a] for a in self.perceptrons[1:]] )
+        print( [[b.child_weights for b in a] for a in self.neurons[1:]] )
+        print( [[b.bias for b in a] for a in self.neurons[1:]] )
 
         return round((correct_awnsers / len(correct_output)) * 100, 2), output_list, output_list_raw
 
@@ -298,7 +296,6 @@ class Neural_Network:
 
             self.set_input_nodes( dataset_data )
             self.feed_forward()
-            # wrong_factor += sum([ c_o_tmp_data - node_output for c_o_tmp_data, node_output in zip( correct_output_data, self.get_output_nodes() ) ])
             for correct_output_datapoint, node_output in zip( correct_output_data, self.get_output_nodes() ):
                 wrong_factor += abs(correct_output_datapoint - node_output)
 
@@ -317,7 +314,7 @@ class Neural_Network:
 
         for iteration_counter in range(iterations):
             print( "Iteration: {}".format( iteration_counter+1 ), end="" )
-            # print( [[b.child_weights for b in a] for a in self.perceptrons[1:]] )
+            # print( [[b.child_weights for b in a] for a in self.neurons[1:]] )
 
             for dataset_data, correct_output_data in zip( dataset, correct_output ):
 
@@ -325,7 +322,7 @@ class Neural_Network:
                 self.feed_forward()
                 self.back_propagation_last_layer( correct_output_data )
                 self.back_propagation()
-                self.update_perceptrons( [learning_constant[0] if learning_constant[2]>iteration_counter else learning_constant[1]][0] )
+                self.update_neurons( [learning_constant[0] if learning_constant[2]>iteration_counter else learning_constant[1]][0] )
 
             test_data = self.test_dataset( dataset, correct_output )
             test_results.append(test_data)
@@ -333,17 +330,31 @@ class Neural_Network:
 
         return test_results
 
+# =================================================================
+#                          Main function
+# =================================================================
+
 if __name__ == "__main__":
     # print(  import_data_from_file( "iris.data" )[2] )
 
-    john = Neural_Network( n_inputs=2, hidden_layers=[2], n_outputs=1 )
+    # XOR
+    # john = Neural_Network( n_inputs=2, hidden_layers=[2], n_outputs=1 )
+
+    # Full Adder
+    john = Neural_Network( n_inputs=3, hidden_layers=[3], n_outputs=2 )
+    
     john.connect_all()
-    # john.print_network()
+    john.print_network()
 
-    dataset = [[0,0],[0,1],[1,0],[1,1]]
-    correct_output = [[0],[1],[1],[0]]
+    # XOR
+    # dataset = [[0,0],[0,1],[1,0],[1,1]]
+    # correct_output = [[0],[1],[1],[0]]
 
-    john_res = john.train( dataset=dataset, correct_output=correct_output, learning_constant=[1,0.01,200], iterations=80000 )
+    # Full Adder
+    dataset =        [[0,0,0],[0,0,1],[0,1,0],[0,1,1],[1,0,0],[1,0,1],[1,1,0],[1,1,1]]
+    correct_output = [[0,0],  [0,1],  [0,1],  [1,0],  [0,1],  [1,0],  [1,0],  [1,1]]
+
+    john_res = john.train( dataset=dataset, correct_output=correct_output, learning_constant=[2,0.8,400], iterations=8000 )
     john_resultaat = john.get_percentage_correctness( dataset=dataset, correct_output=correct_output )
 
     print( "Iteration {} was lowest with correct factor of {}".format( john_res.index(min(john_res))+1, min(john_res) ))
