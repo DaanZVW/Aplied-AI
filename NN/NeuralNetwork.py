@@ -50,16 +50,20 @@ def import_data_from_file( filename ):
 
     return normalised_data, data, names
 
-def sigmoid( x ):
-    """Return the sigmoid of x
+def sigmoid( z ):
+    """Return the sigmoid of z
 
     Args:
-        x (float): Value you want sigmoided
+        z (float): Value you want sigmoided
 
     Returns:
         float: sigmoided value
     """
-    return 1 / (1 + np.exp(-x))
+    return 1 / (1 + np.exp(-z))
+
+
+def sigmoid_derivative( z ):
+    return sigmoid( z ) * (1 - sigmoid( z ))
 
 def get_random_number():
     """Get random number between -1 and 1
@@ -96,10 +100,10 @@ class Perceptron:
         """Feed forward this perceptron
         """
         # Get result of previous layer times the designated weights
-        self.z_value = np.dot( [child.a_value for child in self.child_perceptrons], self.child_weights )
+        self.z_value = np.dot( [child.a_value for child in self.child_perceptrons], self.child_weights ) + self.bias
 
         # Sigmoid the z_value plus the bias and put this in a_value
-        self.a_value = sigmoid( self.z_value + self.bias )
+        self.a_value = sigmoid( self.z_value )
 
     def back_propagation_last_layer( self, correct_output ):
         """Do back propagation for the last layer (only)
@@ -107,7 +111,7 @@ class Perceptron:
         Args:
             correct_output (float): The value it should display
         """
-        self.delta = sigmoid( self.z_value ) * (correct_output - self.a_value)
+        self.delta = sigmoid_derivative( self.z_value ) * (correct_output - self.a_value)
 
     def back_propagation( self ):
         """Do back propagation for the perceptron
@@ -139,7 +143,7 @@ class Perceptron:
             parent_weight = parent.child_weights[parent.child_perceptrons.index( self )]
             sum_weighted_parents += parent.delta * parent_weight
         
-        self.delta = sigmoid( self.z_value ) * sum_weighted_parents
+        self.delta = sigmoid_derivative( self.z_value ) * sum_weighted_parents
 
     def update_perceptron( self, learning_constant ):
         """Update the weight and bias of the perceptron
@@ -243,7 +247,7 @@ class Neural_Network:
     def back_propagation( self ):
         """Do the regular back propagation for the entire Neural Network
         """
-        for layer in self.perceptrons[1:-1]:
+        for layer in reversed(self.perceptrons[1:-1]):
             for node in layer:
                 node.back_propagation()
 
@@ -258,16 +262,7 @@ class Neural_Network:
                 node.update_perceptron( learning_constant )
                 # print( "updated node" )
 
-    def test_dataset( self, dataset, correct_output ):
-        """Test the dataset with correct_output and return a percentage
-
-        Args:
-            dataset (list): list containing the dataset
-            correct_output (list): list containing the correct_outputs
-
-        Returns:
-            float: Return a percentage of correct guessed.
-        """
+    def get_percentage_correctness( self, dataset, correct_output ):
         output_list_raw = []
         output_list = []
         correct_awnsers = 0
@@ -283,10 +278,31 @@ class Neural_Network:
             output_list.append( output_nodes )
             output_list_raw.append( self.get_output_nodes() )
         
-        # print( [[b.child_weights for b in a] for a in self.perceptrons[1:]] )
-        # print( [[b.bias for b in a] for a in self.perceptrons[1:]] )
+        print( [[b.child_weights for b in a] for a in self.perceptrons[1:]] )
+        print( [[b.bias for b in a] for a in self.perceptrons[1:]] )
 
         return round((correct_awnsers / len(correct_output)) * 100, 2), output_list, output_list_raw
+
+    def test_dataset( self, dataset, correct_output ):
+        """Test the dataset with correct_output and return a percentage
+
+        Args:
+            dataset (list): list containing the dataset
+            correct_output (list): list containing the correct_outputs
+
+        Returns:
+            float: Return a percentage of correct guessed.
+        """
+        wrong_factor = 0
+        for dataset_data, correct_output_data in zip( dataset, correct_output ):
+
+            self.set_input_nodes( dataset_data )
+            self.feed_forward()
+            # wrong_factor += sum([ c_o_tmp_data - node_output for c_o_tmp_data, node_output in zip( correct_output_data, self.get_output_nodes() ) ])
+            for correct_output_datapoint, node_output in zip( correct_output_data, self.get_output_nodes() ):
+                wrong_factor += abs(correct_output_datapoint - node_output)
+
+        return wrong_factor
 
     def train( self, dataset, correct_output, learning_constant, iterations ):
         """Train the Neural Network
@@ -297,7 +313,7 @@ class Neural_Network:
             learning_constant (int): Learning constant for better training
             iterations (int): Amount of iterations which the dataset is trained for
         """
-        learning_constant_step = (learning_constant[0] - learning_constant[1]) / iterations
+        test_results = []
 
         for iteration_counter in range(iterations):
             print( "Iteration: {}".format( iteration_counter+1 ), end="" )
@@ -306,17 +322,16 @@ class Neural_Network:
             for dataset_data, correct_output_data in zip( dataset, correct_output ):
 
                 self.set_input_nodes( dataset_data )
-
-                # print( dataset_data, correct_output_data )
-
-                # print( [a.a_value for a in self.perceptrons[0]], dataset_data, correct_output_data )
-
                 self.feed_forward()
                 self.back_propagation_last_layer( correct_output_data )
                 self.back_propagation()
-                self.update_perceptrons( learning_constant[0] - learning_constant_step*iteration_counter )
+                self.update_perceptrons( [learning_constant[0] if learning_constant[2]>iteration_counter else learning_constant[1]][0] )
 
-            print( " ",self.test_dataset( dataset, correct_output )[0] )
+            test_data = self.test_dataset( dataset, correct_output )
+            test_results.append(test_data)
+            print( " ", test_data )
+
+        return test_results
 
 if __name__ == "__main__":
     # print(  import_data_from_file( "iris.data" )[2] )
@@ -328,7 +343,8 @@ if __name__ == "__main__":
     dataset = [[0,0],[0,1],[1,0],[1,1]]
     correct_output = [[0],[1],[1],[0]]
 
-    john.train( dataset=dataset, correct_output=correct_output, learning_constant=[0.85,0.005], iterations=10000 )
-    john_resultaat = john.test_dataset( dataset=dataset, correct_output=correct_output )
+    john_res = john.train( dataset=dataset, correct_output=correct_output, learning_constant=[1,0.01,200], iterations=80000 )
+    john_resultaat = john.get_percentage_correctness( dataset=dataset, correct_output=correct_output )
 
+    print( "Iteration {} was lowest with correct factor of {}".format( john_res.index(min(john_res))+1, min(john_res) ))
     print( john_resultaat )
