@@ -1,6 +1,7 @@
 import numpy as np
 import copy
 import random
+import time
 
 # Set random seed to 0 for reproduction
 random.seed( 0 )
@@ -50,7 +51,25 @@ def import_data_from_file( filename ):
         
         normalised_data.append( tmp_data )
 
-    return normalised_data, data, names
+    return normalised_data, names
+
+def convert_names_to_correct_output( names ):
+    """Convert names to a list with a 1 for true and 0 for false
+
+    Args:
+        names (list): list with different names
+
+    Returns:
+        list: returns a list 1 for true and 0 for false for all the names
+    """
+    unique_names = list(np.unique( names ))
+
+    indexed_names = []
+    for name in names:
+        name_index = unique_names.index( name )
+        indexed_names.append( [1 if name_index == unique_index else 0 for unique_index in range(len(unique_names))] )
+
+    return indexed_names
 
 def sigmoid( z ):
     """Return the sigmoid of z
@@ -62,7 +81,6 @@ def sigmoid( z ):
         float: sigmoided value
     """
     return 1 / (1 + np.exp(-z))
-
 
 def sigmoid_derivative( z ):
     """Return the derivative of the sigmoid of z
@@ -108,7 +126,7 @@ class Neuron:
         self.bias = get_random_number()
         self.z_value = 0
         self.a_value = 0
-        self.name = "neuron"
+        self.name = "Neuron"
 
     def feed_forward( self ):
         """Feed forward this neuron
@@ -133,7 +151,7 @@ class Neuron:
         sum_weighted_parents = 0
         for parent in self.parent_neurons:
             # Filter out input parents
-            if parent.name != "neuron":
+            if parent.name != "Neuron":
                 continue
             
             parent_weight = parent.child_weights[parent.child_neurons.index( self )]
@@ -229,7 +247,7 @@ class Neural_Network:
         """
         for layer in self.neurons[1:]:
             for node in layer:
-                if node.name != "neuron":
+                if node.name != "Neuron":
                     continue
 
                 node.feed_forward()
@@ -260,27 +278,6 @@ class Neural_Network:
             for node in layer:
                 node.update_neuron( learning_constant )
 
-    def get_percentage_correctness( self, dataset, correct_output ):
-        output_list_raw = []
-        output_list = []
-        correct_awnsers = 0
-        for dataset_data, correct_output_data in zip( dataset, correct_output ):
-
-            self.set_input_nodes( dataset_data )
-            self.feed_forward()
-
-            output_nodes = [1 if node>0.5 else 0 for node in self.get_output_nodes()]
-            if output_nodes == correct_output_data:
-                correct_awnsers += 1
-
-            output_list.append( output_nodes )
-            output_list_raw.append( self.get_output_nodes() )
-        
-        print( [[b.child_weights for b in a] for a in self.neurons[1:]] )
-        print( [[b.bias for b in a] for a in self.neurons[1:]] )
-
-        return round((correct_awnsers / len(correct_output)) * 100, 2), output_list, output_list_raw
-
     def test_dataset( self, dataset, correct_output ):
         """Test the dataset with correct_output and return a percentage
 
@@ -301,32 +298,68 @@ class Neural_Network:
 
         return wrong_factor
 
-    def train( self, dataset, correct_output, learning_constant, iterations ):
+    def get_percentage_correctness( self, dataset, correct_output ):
+        """Test the current Neural Network and give back percentages
+
+        Args:
+            dataset (list): list with the dataset
+            correct_output (list): list with the correct awnsers of the dataset
+
+        Returns:
+            tuple: percentage, output_list_raw
+                percentage: percentage of correctness
+                output_list_raw: give back the raw anwser of the Neural Network
+        """
+        output_list_raw = []
+        correct_awnsers = 0
+        for dataset_data, correct_output_data in zip( dataset, correct_output ):
+
+            self.set_input_nodes( dataset_data )
+            self.feed_forward()
+
+            output_nodes = [1 if node>0.5 else 0 for node in self.get_output_nodes()]
+            if output_nodes == correct_output_data:
+                correct_awnsers += 1
+
+            output_list_raw.append( [round(np.float(x), 5) for x in self.get_output_nodes()] )
+
+        return round((correct_awnsers / len(correct_output)) * 100, 2), output_list_raw
+
+    def train( self, dataset, correct_output, learning_constant, iterations, show_info=True ):
         """Train the Neural Network
 
         Args:
             dataset (list): List containing all the data
             correct_output (list): list containing all the awnsers to the dataset
-            learning_constant (int): Learning constant for better training
+            learning_constant (list): Learning constant for better training
             iterations (int): Amount of iterations which the dataset is trained for
+        
+        NOTE: The learning constant consist out of 2 variables. index 0 is the initial
+        learning constant. When the error_margin highers it will be multiplied by index
+        1. So index 1 has to be below 1.0 to get a valiable training.
         """
         test_results = []
+        tmp_learning_constant = learning_constant[0]
 
         for iteration_counter in range(iterations):
-            print( "Iteration: {}".format( iteration_counter+1 ), end="" )
-            # print( [[b.child_weights for b in a] for a in self.neurons[1:]] )
-
             for dataset_data, correct_output_data in zip( dataset, correct_output ):
 
                 self.set_input_nodes( dataset_data )
                 self.feed_forward()
                 self.back_propagation_last_layer( correct_output_data )
                 self.back_propagation()
-                self.update_neurons( [learning_constant[0] if learning_constant[2]>iteration_counter else learning_constant[1]][0] )
+                self.update_neurons( tmp_learning_constant )
 
             test_data = self.test_dataset( dataset, correct_output )
             test_results.append(test_data)
-            print( " ", test_data )
+
+            # Decrease learning constant by given factor if error gets higher
+            if len(test_results) >= 2:
+                if test_data > test_results[-2]:
+                    tmp_learning_constant *= learning_constant[1]              
+
+            if show_info:
+                print( "Iteration: {} {} {}".format( iteration_counter+1, round(test_data, 5), tmp_learning_constant))
 
         return test_results
 
@@ -335,27 +368,48 @@ class Neural_Network:
 # =================================================================
 
 if __name__ == "__main__":
-    # print(  import_data_from_file( "iris.data" )[2] )
 
-    # XOR
-    # john = Neural_Network( n_inputs=2, hidden_layers=[2], n_outputs=1 )
+    # # XOR
+    XOR = Neural_Network( n_inputs=2, hidden_layers=[2], n_outputs=1 )
+    XOR.connect_all()
 
-    # Full Adder
-    john = Neural_Network( n_inputs=3, hidden_layers=[3], n_outputs=2 )
+    dataset = [[0,0],[0,1],[1,0],[1,1]]
+    correct_output = [[0],[1],[1],[0]]
+
+    XOR.train( dataset=dataset, correct_output=correct_output, learning_constant=[10,0.8], iterations=300, show_info=False )
+    XOR_result = XOR.get_percentage_correctness( dataset=dataset, correct_output=correct_output )
+
+    print( "XOR:        {}".format(XOR_result) )
     
-    john.connect_all()
-    john.print_network()
+    # # Full Adder
+    Full_Adder = Neural_Network( n_inputs=3, hidden_layers=[3], n_outputs=2 )
+    Full_Adder.connect_all()
 
-    # XOR
-    # dataset = [[0,0],[0,1],[1,0],[1,1]]
-    # correct_output = [[0],[1],[1],[0]]
-
-    # Full Adder
     dataset =        [[0,0,0],[0,0,1],[0,1,0],[0,1,1],[1,0,0],[1,0,1],[1,1,0],[1,1,1]]
     correct_output = [[0,0],  [0,1],  [0,1],  [1,0],  [0,1],  [1,0],  [1,0],  [1,1]]
 
-    john_res = john.train( dataset=dataset, correct_output=correct_output, learning_constant=[2,0.8,400], iterations=8000 )
-    john_resultaat = john.get_percentage_correctness( dataset=dataset, correct_output=correct_output )
+    Full_Adder.train( dataset=dataset, correct_output=correct_output, learning_constant=[10,0.9], iterations=200, show_info=False )
+    Full_Adder_result = Full_Adder.get_percentage_correctness( dataset=dataset, correct_output=correct_output )
 
-    print( "Iteration {} was lowest with correct factor of {}".format( john_res.index(min(john_res))+1, min(john_res) ))
-    print( john_resultaat )
+    print( "Full_adder: {}".format(Full_Adder_result) )
+
+    # Iris Dataset
+    Iris = Neural_Network( n_inputs=4, hidden_layers=[5], n_outputs=3 )
+    Iris.connect_all()
+
+    Iris_dataset = import_data_from_file( "iris.data" )
+    dataset = Iris_dataset[0]
+    correct_output = convert_names_to_correct_output( Iris_dataset[1] )
+
+    begin_time = time.time_ns()
+    Iris.train( dataset=dataset, correct_output=correct_output, learning_constant=[10,0.4], iterations=20000, show_info=True )
+    print( "Took: {} seconds".format( round(((time.time_ns() - begin_time)/1000000000), 2) ))
+    Iris_result = Iris.get_percentage_correctness( dataset=dataset, correct_output=correct_output )
+
+    print( "Iris:       {}".format(Iris_result) )
+
+    # john_res = john.train( dataset=dataset, correct_output=correct_output, learning_constant=[10,0.5], iterations=500, show_info=False )
+    # john_resultaat = john.get_percentage_correctness( dataset=dataset, correct_output=correct_output )
+
+    # print( "Iteration {} was lowest with correct factor of {}".format( john_res.index(min(john_res))+1, min(john_res) ))
+    # print( john_resultaat )
