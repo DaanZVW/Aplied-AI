@@ -16,42 +16,6 @@ def import_data_from_file( filename, delim, data_cols, name_cols ):
     Returns:
         tuple: returns a the data normalised and the correct output
     """
-    data = np.genfromtxt(
-        filename,
-        delimiter=delim,
-        usecols=data_cols,
-        converters={
-            5: lambda s: 0 if s == b"-1" else float(s),
-            7: lambda s: 0 if s == b"-1" else float(s)
-        })
-
-    names = np.genfromtxt(filename, dtype=str, delimiter=delim, usecols=name_cols)
-
-    # Make copy of first row for column min and max list
-    min_list = copy.deepcopy(data[0])
-    max_list = copy.deepcopy(data[0])
-
-    # Go through all the unseen data rows and check if it is
-    # higher or lower than the found min or max of that col
-    for row in data[1:]:
-        for colindex in range(len(row)):
-            min_list[colindex] = min( row[colindex], min_list[colindex] )
-            max_list[colindex] = max( row[colindex], max_list[colindex] )
-
-    # Make new data list with all the normalised data
-    normalised_data = []
-
-    # Append data with data_points
-    for row in data:
-        tmp_data = []
-
-        # Rescale all the data training data with min, max normalisation
-        for col, min_value, max_value in zip(row, min_list, max_list):
-            tmp_data.append( ((col - min_value) / (max_value - min_value)) )
-        
-        normalised_data.append( tmp_data )
-
-    return normalised_data, names
 
 def convert_names_to_correct_output( names ):
     """Convert names to a list with a 1 for true and 0 for false
@@ -62,15 +26,7 @@ def convert_names_to_correct_output( names ):
     Returns:
         list: returns a list 1 for true and 0 for false for all the names
     """
-    unique_names = list(np.unique( names ))
-
-    indexed_names = []
-    for name in names:
-        name_index = unique_names.index( name )
-        indexed_names.append( [1 if name_index == unique_index else 0 for unique_index in range(len(unique_names))] )
-
-    return indexed_names
-
+    
 def sigmoid( z ):
     """Return the sigmoid of z
 
@@ -80,7 +36,6 @@ def sigmoid( z ):
     Returns:
         float: sigmoided value
     """
-    return 1 / (1 + np.exp(-z))
 
 def sigmoid_derivative( z ):
     """Return the derivative of the sigmoid of z
@@ -91,7 +46,6 @@ def sigmoid_derivative( z ):
     Returns:
         float: derivative sigmoided value
     """
-    return sigmoid( z ) * (1 - sigmoid( z ))
 
 def get_random_number():
     """Get random number between -1 and 1
@@ -99,7 +53,6 @@ def get_random_number():
     Returns:
         [type]: [description]
     """
-    return random.uniform( -1, 1 )
 
 # =================================================================
 #                      Neuron classes
@@ -114,8 +67,6 @@ class Input_Neuron:
         Args:
             value (int, optional): Value of a_value. Defaults to 0.
         """
-        self.a_value = value
-        self.name = "Input"
 
 class Neuron:
     """A neuron which is used in the Neural Network
@@ -123,23 +74,10 @@ class Neuron:
     def __init__( self ):
         """Make a neuron
         """
-        self.child_neurons = []
-        self.child_weights = []
-        self.parent_neurons = []
-        self.delta = 0
-        self.bias = get_random_number()
-        self.z_value = 0
-        self.a_value = 0
-        self.name = "Neuron"
 
     def feed_forward( self ):
         """Feed forward this neuron
         """
-        # Get result of previous layer times the designated weights
-        self.z_value = np.dot( [child.a_value for child in self.child_neurons], self.child_weights ) + self.bias
-
-        # Sigmoid the z_value plus the bias and put this in a_value
-        self.a_value = sigmoid( self.z_value )
 
     def back_propagation_last_layer( self, correct_output ):
         """Do back propagation for the last layer (only)
@@ -147,21 +85,10 @@ class Neuron:
         Args:
             correct_output (float): The value it should display
         """
-        self.delta = sigmoid_derivative( self.z_value ) * (correct_output - self.a_value)
 
     def back_propagation( self ):
         """Do back propagation for the neuron
         """
-        sum_weighted_parents = 0
-        for parent in self.parent_neurons:
-            # Filter out input parents
-            if parent.name != "Neuron":
-                continue
-            
-            parent_weight = parent.child_weights[parent.child_neurons.index( self )]
-            sum_weighted_parents += parent.delta * parent_weight
-        
-        self.delta = sigmoid_derivative( self.z_value ) * sum_weighted_parents
 
     def update_neuron( self, learning_constant ):
         """Update the weight and bias of the neuron
@@ -169,13 +96,6 @@ class Neuron:
         Args:
             learning_constant (int): learning constant
         """
-        tmp_child_weight = []
-        for child, child_weight in zip( self.child_neurons, self.child_weights ):
-            child_weight += learning_constant * self.delta * child.a_value
-            tmp_child_weight.append( child_weight )
-
-        self.child_weights = tmp_child_weight
-        self.bias += learning_constant * self.delta
 
 # =================================================================
 #                           NN class
@@ -193,40 +113,14 @@ class Neural_Network:
             hidden_layers (list): amount of nodes in layer given in list
             n_outputs (int): amount of output nodes
         """
-        self.neurons = [[] for _ in range( len(hidden_layers) + 2 )]
-        self.neurons[0] = [Input_Neuron() for _ in range( n_inputs )]
-
-        for index in range(1, len(hidden_layers)+1):
-            self.neurons[index] = [Neuron() for _ in range( hidden_layers[index-1] )]
-
-        self.neurons[-1] = [Neuron() for _ in range( n_outputs )]
 
     def connect_all( self ):
         """This function will connect every node to eachother
         """
-        for layer_index, layer in enumerate( self.neurons[1:] ):
-            for neuron in layer:
-                # Take childeren from one layer back
-                # NOTE: because we dont want layer 1 (inputs) we dont need index highering
-                neuron.child_neurons = self.neurons[layer_index]
-                neuron.child_weights = [get_random_number() for _ in range( len( self.neurons[layer_index] ) )]
-
-                # Check if layer is not output layer
-                # Make parents if true from one layer forward
-                # NOTE: because we dont want layer 1 (inputs) we need to higher index by two
-                if layer_index != len(self.neurons)-2:
-                    neuron.parent_neurons = self.neurons[layer_index+2]
 
     def print_network( self ):
         """Show the network in a useable form
         """   
-        print("Layer: 0\n","\n".join( [ node.name for node in self.neurons[0] ] ), sep="")
-        for layer_index, layer in enumerate(self.neurons[1:]):
-            print("\nlayer: {}".format( layer_index+1 ))
-            for node in layer:
-                print( node.name, [ child.name for child in node.child_neurons ],
-                       [parent.name for parent in node.parent_neurons], 
-                       node.child_weights )
 
     def set_input_nodes( self, input_conf ):
         """Set a_value of the input nodes to the dataset
@@ -234,18 +128,10 @@ class Neural_Network:
         Args:
             input_conf (list): list with all the nodes from top to bottom
         """
-        for input_node, input_set in zip( self.neurons[0], input_conf ):
-            input_node.a_value = input_set
 
     def feed_forward( self ):
         """Feed forward all neurons in the Neural Network
         """
-        for layer in self.neurons[1:]:
-            for node in layer:
-                if node.name != "Neuron":
-                    continue
-
-                node.feed_forward()
 
     def back_propagation_last_layer( self, correct_output ):
         """Do the back propagation for the last layer
@@ -253,15 +139,10 @@ class Neural_Network:
         Args:
             correct_output (list): list containing all the correct outputs from top to bottom
         """
-        for node, correct_output_node in zip( self.neurons[-1], correct_output ):
-            node.back_propagation_last_layer( correct_output_node )
 
     def back_propagation( self ):
         """Do the regular back propagation for the entire Neural Network
         """
-        for layer in reversed(self.neurons[1:-1]):
-            for node in layer:
-                node.back_propagation()
 
     def update_neurons( self, learning_constant ):
         """Update all the weights and biases of the Neural Network
@@ -269,9 +150,6 @@ class Neural_Network:
         Args:
             learning_constant (int): Learning constant for better training
         """
-        for layer in self.neurons[1:]:
-            for node in layer:
-                node.update_neuron( learning_constant )
 
     def test_dataset( self, dataset, correct_output ):
         """Test the dataset with correct_output and return a percentage
@@ -283,15 +161,6 @@ class Neural_Network:
         Returns:
             float: Return a percentage of correct guessed.
         """
-        wrong_factor = 0
-        for dataset_data, correct_output_data in zip( dataset, correct_output ):
-
-            self.set_input_nodes( dataset_data )
-            self.feed_forward()
-            for correct_output_datapoint, node_output in zip( correct_output_data, self.neurons[-1] ):
-                wrong_factor += abs(correct_output_datapoint - node_output.a_value)
-
-        return wrong_factor
 
     def get_percentage_correctness( self, dataset, correct_output ):
         """Test the current Neural Network and give back percentages
@@ -305,24 +174,8 @@ class Neural_Network:
                 percentage: percentage of correctness
                 output_list_raw: give back the raw anwser of the Neural Network
         """
-        output_list_raw = []
-        correct_awnsers = 0
-        for dataset_data, correct_output_data in zip( dataset, correct_output ):
 
-            self.set_input_nodes( dataset_data )
-            self.feed_forward()
-
-            output_nodes = [1 if node.a_value>0.5 else 0 for node in self.neurons[-1]]
-            if output_nodes == correct_output_data:
-                correct_awnsers += 1
-            else:
-                print( correct_output_data, [node.a_value for node in self.neurons[-1]] )
-
-            output_list_raw.append( [round(node.a_value, 5) for node in self.neurons[-1]] )
-
-        return round((correct_awnsers / len(correct_output)) * 100, 2), output_list_raw
-
-    def train( self, dataset, correct_output, learning_constant, iterations, show_info=False ):
+    def train( self, dataset, correct_output, learning_constant, iterations, show_info=True ):
         """Train the Neural Network
 
         Args:
@@ -335,30 +188,6 @@ class Neural_Network:
         learning constant. When the error_margin highers it will be multiplied by index
         1. So index 1 has to be below 1.0 to get a valiable training.
         """
-        test_results = []
-        tmp_learning_constant = learning_constant[0]
-
-        for iteration_counter in range(iterations):
-            for dataset_data, correct_output_data in zip( dataset, correct_output ):
-
-                self.set_input_nodes( dataset_data )
-                self.feed_forward()
-                self.back_propagation_last_layer( correct_output_data )
-                self.back_propagation()
-                self.update_neurons( tmp_learning_constant )
-
-            test_data = self.test_dataset( dataset, correct_output )
-            test_results.append(test_data)
-
-            # Decrease learning constant by given factor if error gets higher
-            if len(test_results) >= 2:
-                if test_data > test_results[-2]:
-                    tmp_learning_constant *= learning_constant[1]
-
-            if show_info:
-                print( "Iteration: {} {} {}".format( iteration_counter+1, round(test_data, 5), tmp_learning_constant))
-
-        return test_results
 
 # =================================================================
 #                          Main function
