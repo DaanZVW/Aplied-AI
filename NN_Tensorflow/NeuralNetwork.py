@@ -1,5 +1,8 @@
 import tensorflow as tf
 import matplotlib.pyplot as plt
+# Importing the required Keras modules containing model and layers
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Conv2D, Dropout, Flatten, MaxPooling2D
 
 (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
 
@@ -17,9 +20,6 @@ print('x_train shape:', x_train.shape)
 print('Number of images in x_train', x_train.shape[0])
 print('Number of images in x_test', x_test.shape[0])
 
-# Importing the required Keras modules containing model and layers
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Conv2D, Dropout, Flatten, MaxPooling2D
 # Creating a Sequential Model and adding the layers
 model = Sequential()
 model.add(Conv2D(28, kernel_size=(3,3), input_shape=input_shape))
